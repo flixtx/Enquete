@@ -1,6 +1,7 @@
 {
   "rewrites": [
+    { "source": "/", "destination": "/enquete.html" },
     { "source": "/api/(.*)", "destination": "/api/index.py" },
-    { "source": "/(.*)", "destination": "/public/index.html" }
+    { "source": "/(.*)", "destination": "/enquete.html" }
   ]
 }
