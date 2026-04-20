@@ -7,6 +7,8 @@ import requests
 UPSTASH_URL = os.environ.get('UPSTASH_REDIS_REST_URL', '').rstrip('/')
 UPSTASH_TOKEN = os.environ.get('UPSTASH_REDIS_REST_TOKEN', '')
 
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
 def redis_command(*args):
     path = '/'.join(str(arg).replace('/', '%2F') for arg in args)
     url = f"{UPSTASH_URL}/{path}"
@@ -51,6 +53,9 @@ class handler(BaseHTTPRequestHandler):
             except Exception as e:
                 self.send_json(500, {'error': str(e)})
 
+        elif self.path in ('/', ''):
+            self._serve_html()
+
         else:
             self.send_json(404, {'erro': f'Rota {self.path} não encontrada'})
 
@@ -84,6 +89,30 @@ class handler(BaseHTTPRequestHandler):
                 self.send_json(500, {'error': str(e)})
         else:
             self.send_json(404, {'erro': f'Rota {self.path} não encontrada'})
+
+    def _serve_html(self):
+        possible_paths = [
+            os.path.join(BASE_DIR, 'index.html'),
+            '/var/task/index.html',
+            os.path.join(os.getcwd(), 'index.html'),
+        ]
+        for path in possible_paths:
+            if os.path.exists(path):
+                with open(path, 'r', encoding='utf-8') as f:
+                    content = f.read().encode('utf-8')
+                self.send_response(200)
+                self.send_header('Content-type', 'text/html; charset=utf-8')
+                self.send_header('Access-Control-Allow-Origin', '*')
+                self.end_headers()
+                self.wfile.write(content)
+                return
+        # Debug se não achar
+        self.send_json(404, {
+            'erro': 'index.html não encontrado',
+            'base_dir': BASE_DIR,
+            'cwd': os.getcwd(),
+            'listdir': os.listdir(BASE_DIR) if os.path.exists(BASE_DIR) else []
+        })
 
     def send_json(self, status, data):
         self.send_response(status)
