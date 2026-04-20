@@ -60,9 +60,12 @@ class handler(BaseHTTPRequestHandler):
                     raise ValueError('Escolha inválida')
 
                 if not UPSTASH_URL or not UPSTASH_TOKEN:
-                    raise Exception(f'Env vars não configuradas: URL={bool(UPSTASH_URL)} TOKEN={bool(UPSTASH_TOKEN)}')
+                    raise Exception('Env vars não configuradas')
 
-                redis_command('INCR', f'feriado:{choice}')
+                key = f'feriado:{choice}'
+                atual = int(redis_command('GET', key) or 0)
+                redis_command('SET', key, str(atual + 1))
+
                 self.send_json(200, {'success': True})
             except ValueError as e:
                 self.send_json(400, {'error': str(e)})
