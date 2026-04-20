@@ -10,14 +10,19 @@ UPSTASH_TOKEN = os.environ.get('UPSTASH_REDIS_REST_TOKEN', '')
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 def redis_command(*args):
-    path = '/'.join(str(arg).replace('/', '%2F') for arg in args)
-    url = f"{UPSTASH_URL}/{path}"
-    headers = {"Authorization": f"Bearer {UPSTASH_TOKEN}"}
-    resp = requests.get(url, headers=headers)
+    url = f"{UPSTASH_URL}/pipeline"
+    headers = {
+        "Authorization": f"Bearer {UPSTASH_TOKEN}",
+        "Content-Type": "application/json"
+    }
+    resp = requests.post(url, headers=headers, json=[list(args)])
     data = resp.json()
-    if 'error' in data:
-        raise Exception(data['error'])
-    return data.get('result')
+    if isinstance(data, list) and data:
+        result = data[0]
+        if 'error' in result:
+            raise Exception(result['error'])
+        return result.get('result')
+    return None
 
 class handler(BaseHTTPRequestHandler):
 
@@ -37,22 +42,6 @@ class handler(BaseHTTPRequestHandler):
             except Exception as e:
                 self.send_json(500, {'error': str(e)})
 
-        elif self.path == '/api/comments':
-            try:
-                items = redis_command('LRANGE', 'feriado:observacoes', '0', '-1') or []
-                comments = []
-                for item in items:
-                    try:
-                        obj = json.loads(item)
-                        if obj.get('texto'):
-                            comments.append(obj)
-                    except:
-                        pass
-                comments.sort(key=lambda x: x.get('timestamp', 0), reverse=True)
-                self.send_json(200, {'comments': comments})
-            except Exception as e:
-                self.send_json(500, {'error': str(e)})
-
         elif self.path in ('/', ''):
             self._serve_html()
 
@@ -66,29 +55,20 @@ class handler(BaseHTTPRequestHandler):
                 body = self.rfile.read(content_length).decode('utf-8')
                 data = json.loads(body)
                 choice = data.get('choice')
-                comment = data.get('comment', '').strip()
 
                 if choice not in ('sim', 'nao'):
                     raise ValueError('Escolha inválida')
-                if not comment:
-                    raise ValueError('Observação obrigatória')
-                if len(comment) > 600:
-                    raise ValueError('Máximo 600 caracteres')
 
                 if not UPSTASH_URL or not UPSTASH_TOKEN:
                     raise Exception(f'Env vars não configuradas: URL={bool(UPSTASH_URL)} TOKEN={bool(UPSTASH_TOKEN)}')
 
                 redis_command('INCR', f'feriado:{choice}')
-                obs = {
-                    'escolha': choice,
-                    'texto': comment,
-                    'timestamp': int(time.time() * 1000)
-                }
-                redis_command('RPUSH', 'feriado:observacoes', json.dumps(obs))
                 self.send_json(200, {'success': True})
             except ValueError as e:
                 self.send_json(400, {'error': str(e)})
             except Exception as e:
+                import traceback
+                print(traceback.format_exc())
                 self.send_json(500, {'error': str(e)})
         else:
             self.send_json(404, {'erro': f'Rota {self.path} não encontrada'})
