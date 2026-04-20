@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Enquete — Troca de Feriado</title>
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;700;800&family=DM+Sans:wght@400;500&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg: #0d0d0d; --card: #161616; --border: #2a2a2a;
+      --yes: #c8f56a; --no: #ff4d6d; --text: #f0ede8; --muted: #666;
+    }
+    body {
+      background: var(--bg); color: var(--text);
+      font-family: 'DM Sans', sans-serif;
+      min-height: 100vh; display: flex; align-items: center;
+      justify-content: center; padding: 24px;
+    }
+    body::before {
+      content: ''; position: fixed; inset: 0;
+      background-image:
+        linear-gradient(rgba(200,245,106,.04) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(200,245,106,.04) 1px, transparent 1px);
+      background-size: 48px 48px; pointer-events: none; z-index: 0;
+    }
+    .glow { position:fixed; width:600px; height:600px; border-radius:50%; filter:blur(120px); pointer-events:none; z-index:0; opacity:.18; }
+    .glow-g { background:var(--yes); top:-200px; right:-100px; }
+    .glow-r { background:var(--no); bottom:-200px; left:-100px; }
+
+    .card {
+      position: relative; z-index: 1;
+      background: var(--card); border: 1px solid var(--border);
+      border-radius: 20px; padding: 48px 40px 40px;
+      max-width: 520px; width: 100%;
+      box-shadow: 0 40px 80px rgba(0,0,0,.6);
+      animation: up .6s cubic-bezier(.22,1,.36,1) both;
+    }
+    @keyframes up { from{opacity:0;transform:translateY(24px)} to{opacity:1;transform:translateY(0)} }
+
+    .badge {
+      display: inline-flex; align-items: center; gap: 6px;
+      font-family: 'Syne', sans-serif; font-size: 11px; font-weight: 700;
+      letter-spacing: .12em; text-transform: uppercase;
+      color: var(--yes); border: 1px solid rgba(200,245,106,.3);
+      background: rgba(200,245,106,.07); padding: 5px 12px;
+      border-radius: 999px; margin-bottom: 28px;
+    }
+    .badge::before { content:''; width:6px; height:6px; border-radius:50%; background:var(--yes); animation:pulse 2s infinite; }
+    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.3} }
+
+    h1 { font-family:'Syne',sans-serif; font-size:clamp(22px,5vw,30px); font-weight:800; line-height:1.25; margin-bottom:12px; letter-spacing:-.02em; }
+    .sub { font-size:14px; color:var(--muted); margin-bottom:40px; line-height:1.6; }
+
+    .btns { display:grid; grid-template-columns:1fr 1fr; gap:14px; margin-bottom:36px; }
+    .btn {
+      position:relative; overflow:hidden; border:none; border-radius:14px;
+      padding:22px 16px; font-family:'Syne',sans-serif; font-size:22px;
+      font-weight:800; cursor:pointer;
+      transition:transform .15s, box-shadow .15s;
+      display:flex; flex-direction:column; align-items:center; gap:6px;
+    }
+    .btn small { font-size:12px; font-family:'DM Sans',sans-serif; font-weight:500; opacity:.7; }
+    .btn:hover:not(:disabled) { transform:translateY(-3px); }
+    .btn:disabled { opacity:.45; cursor:not-allowed; }
+    .btn-y { background:var(--yes); color:#0d0d0d; box-shadow:0 8px 32px rgba(200,245,106,.25); }
+    .btn-n { background:var(--no);  color:#fff;    box-shadow:0 8px 32px rgba(255,77,109,.25); }
+
+    .results { display:none; flex-direction:column; gap:14px; margin-bottom:20px; }
+    .results.on { display:flex; animation:up .4s ease both; }
+    .row { display:flex; flex-direction:column; gap:6px; }
+    .meta { display:flex; justify-content:space-between; font-size:13px; }
+    .meta b { font-family:'Syne',sans-serif; font-weight:700; }
+    .meta span { color:var(--muted); }
+    .track { height:10px; background:var(--border); border-radius:99px; overflow:hidden; }
+    .fill { height:100%; border-radius:99px; transition:width .8s cubic-bezier(.22,1,.36,1); width:0%; }
+    .fill-y { background:var(--yes); }
+    .fill-n { background:var(--no); }
+    .total { text-align:center; font-size:13px; color:var(--muted); margin-bottom:4px; }
+    .total strong { color:var(--text); font-family:'Syne',sans-serif; }
+
+    .notice {
+      display:none; align-items:center; gap:10px;
+      border-radius:12px; padding:12px 16px; font-size:14px; margin-bottom:20px;
+    }
+    .notice.on { display:flex; }
+    .ok   { background:rgba(200,245,106,.07); border:1px solid rgba(200,245,106,.2); color:var(--yes); }
+    .info { background:rgba(255,255,255,.04); border:1px solid var(--border); color:var(--muted); }
+
+    .divider { height:1px; background:var(--border); margin:24px 0 16px; }
+    .footer { display:flex; justify-content:space-between; font-size:12px; color:var(--muted); }
+
+    /* ── CONFIG PANEL ── */
+    #cfg {
+      position:fixed; inset:0; background:rgba(0,0,0,.85); z-index:100;
+      display:flex; align-items:center; justify-content:center; padding:24px;
+    }
+    #cfg .box {
+      background:var(--card); border:1px solid var(--border);
+      border-radius:20px; padding:36px 32px; max-width:440px; width:100%;
+    }
+    #cfg h2 { font-family:'Syne',sans-serif; font-size:18px; font-weight:800; margin-bottom:6px; }
+    #cfg p  { font-size:13px; color:var(--muted); margin-bottom:24px; line-height:1.6; }
+    #cfg label { font-size:12px; color:var(--muted); display:block; margin-bottom:6px; letter-spacing:.05em; }
+    #cfg input {
+      width:100%; background:#0d0d0d; border:1px solid var(--border);
+      border-radius:10px; padding:12px 14px; color:var(--text);
+      font-family:'DM Sans',sans-serif; font-size:14px; margin-bottom:16px;
+      outline:none; transition:border-color .2s;
+    }
+    #cfg input:focus { border-color:rgba(200,245,106,.4); }
+    #cfg button {
+      width:100%; background:var(--yes); color:#0d0d0d;
+      border:none; border-radius:12px; padding:14px;
+      font-family:'Syne',sans-serif; font-weight:800; font-size:15px;
+      cursor:pointer;
+    }
+    #cfg .hint { font-size:11px; color:var(--muted); margin-top:14px; text-align:center; line-height:1.5; }
+    #cfg a { color:var(--yes); }
+  </style>
+</head>
+<body>
+
+<!-- CONFIG PANEL (aparece na primeira visita) -->
+<div id="cfg">
+  <div class="box">
+    <h2>⚙️ Configurar Upstash</h2>
+    <p>Cole as credenciais do seu banco Upstash Redis.<br>Elas ficam salvas só no seu navegador.</p>
+    <label>UPSTASH_REDIS_REST_URL</label>
+    <input id="cfgUrl"   type="text" placeholder="https://xxxx.upstash.io" />
+    <label>UPSTASH_REDIS_REST_TOKEN</label>
+    <input id="cfgToken" type="password" placeholder="Token de acesso" />
+    <button onclick="saveConfig()">Salvar e abrir enquete</button>
+    <p class="hint">
+      Não tem conta? Crie grátis em <a href="https://upstash.com" target="_blank">upstash.com</a><br>
+      Vá em Redis → Create Database → REST API → copie URL e Token.
+    </p>
+  </div>
+</div>
+
+<div class="glow glow-g"></div>
+<div class="glow glow-r"></div>
+
+<div class="card">
+  <div class="badge">Enquete Ativa</div>
+  <h1>Você assina a troca do feriado?</h1>
+  <p class="sub">Anônima · Resultado em tempo real · 1 voto por dispositivo</p>
+
+  <div class="notice ok" id="noticeOk">✅ Voto registrado!</div>
+  <div class="notice info" id="noticeInfo">ℹ️ Você já votou neste dispositivo.</div>
+
+  <div class="btns">
+    <button class="btn btn-y" id="bY" onclick="vote('sim')">👍<span>SIM</span><small>Concordo</small></button>
+    <button class="btn btn-n" id="bN" onclick="vote('nao')">👎<span>NÃO</span><small>Discordo</small></button>
+  </div>
+
+  <div class="results" id="results">
+    <div class="row">
+      <div class="meta"><b style="color:var(--yes)">👍 Sim</b><span id="pY">0%</span></div>
+      <div class="track"><div class="fill fill-y" id="fY"></div></div>
+    </div>
+    <div class="row">
+      <div class="meta"><b style="color:var(--no)">👎 Não</b><span id="pN">0%</span></div>
+      <div class="track"><div class="fill fill-n" id="fN"></div></div>
+    </div>
+  </div>
+  <p class="total" id="tot"></p>
+
+  <div class="divider"></div>
+  <div class="footer">
+    <span>Troca de Feriado — <strong id="yr"></strong></span>
+    <span style="cursor:pointer;text-decoration:underline" onclick="openConfig()">⚙️ config</span>
+  </div>
+</div>
+
+<script>
+  document.getElementById('yr').textContent = new Date().getFullYear();
+
+  // ── Config ──────────────────────────────────────────────
+  function getCfg() {
+    return {
+      url:   localStorage.getItem('up_url')   || '',
+      token: localStorage.getItem('up_token') || ''
+    };
+  }
+  function saveConfig() {
+    const url   = document.getElementById('cfgUrl').value.trim().replace(/\/$/, '');
+    const token = document.getElementById('cfgToken').value.trim();
+    if (!url || !token) return alert('Preencha os dois campos.');
+    localStorage.setItem('up_url', url);
+    localStorage.setItem('up_token', token);
+    document.getElementById('cfg').style.display = 'none';
+    init();
+  }
+  function openConfig() {
+    const c = getCfg();
+    document.getElementById('cfgUrl').value   = c.url;
+    document.getElementById('cfgToken').value = c.token;
+    document.getElementById('cfg').style.display = 'flex';
+  }
+
+  // ── Upstash REST ─────────────────────────────────────────
+  async function redis(...cmd) {
+    const { url, token } = getCfg();
+    const r = await fetch(`${url}/${cmd.map(encodeURIComponent).join('/')}`, {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    const d = await r.json();
+    return d.result;
+  }
+
+  // ── Vote ─────────────────────────────────────────────────
+  async function vote(choice) {
+    if (localStorage.getItem('feriado_voted')) return;
+    disable(true);
+    await redis('INCR', `feriado:${choice}`);
+    localStorage.setItem('feriado_voted', '1');
+    show('noticeOk');
+    await loadResults();
+  }
+
+  async function loadResults() {
+    const sim = parseInt(await redis('GET', 'feriado:sim') || 0);
+    const nao = parseInt(await redis('GET', 'feriado:nao') || 0);
+    const tot = sim + nao;
+    const pS  = tot ? Math.round(sim / tot * 100) : 0;
+    const pN  = tot ? 100 - pS : 0;
+
+    document.getElementById('pY').textContent = pS + '%';
+    document.getElementById('pN').textContent = pN + '%';
+    document.getElementById('tot').innerHTML  =
+      `<strong>${tot}</strong> voto${tot !== 1 ? 's' : ''} registrado${tot !== 1 ? 's' : ''}`;
+    document.getElementById('results').classList.add('on');
+    setTimeout(() => {
+      document.getElementById('fY').style.width = pS + '%';
+      document.getElementById('fN').style.width = pN + '%';
+    }, 50);
+  }
+
+  function disable(v) {
+    document.getElementById('bY').disabled = v;
+    document.getElementById('bN').disabled = v;
+  }
+  function show(id) { document.getElementById(id).classList.add('on'); }
+
+  // ── Init ─────────────────────────────────────────────────
+  async function init() {
+    if (localStorage.getItem('feriado_voted')) {
+      disable(true); show('noticeInfo'); await loadResults();
+    }
+  }
+
+  // Abre config se não tiver credenciais, senão inicia
+  const { url, token } = getCfg();
+  if (url && token) {
+    document.getElementById('cfg').style.display = 'none';
+    init();
+  }
+</script>
+</body>
+</html>
