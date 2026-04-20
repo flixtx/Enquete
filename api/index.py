@@ -75,6 +75,9 @@ class handler(BaseHTTPRequestHandler):
                 if len(comment) > 600:
                     raise ValueError('Máximo 600 caracteres')
 
+                if not UPSTASH_URL or not UPSTASH_TOKEN:
+                    raise Exception(f'Env vars não configuradas: URL={bool(UPSTASH_URL)} TOKEN={bool(UPSTASH_TOKEN)}')
+
                 redis_command('INCR', f'feriado:{choice}')
                 obs = {
                     'escolha': choice,
@@ -106,7 +109,6 @@ class handler(BaseHTTPRequestHandler):
                 self.end_headers()
                 self.wfile.write(content)
                 return
-        # Debug se não achar
         self.send_json(404, {
             'erro': 'index.html não encontrado',
             'base_dir': BASE_DIR,
