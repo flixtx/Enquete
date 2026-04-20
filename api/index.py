@@ -8,10 +8,10 @@ UPSTASH_URL = os.environ.get('UPSTASH_REDIS_REST_URL', '').rstrip('/')
 UPSTASH_TOKEN = os.environ.get('UPSTASH_REDIS_REST_TOKEN', '')
 
 def redis_command(*args):
-    path = '/'.join(arg.replace('/', '%2F') for arg in args)
+    path = '/'.join(str(arg).replace('/', '%2F') for arg in args)
     url = f"{UPSTASH_URL}/{path}"
     headers = {"Authorization": f"Bearer {UPSTASH_TOKEN}"}
-    resp = requests.get(url)
+    resp = requests.get(url, headers=headers)
     data = resp.json()
     if 'error' in data:
         raise Exception(data['error'])
@@ -19,16 +19,13 @@ def redis_command(*args):
 
 class handler(BaseHTTPRequestHandler):
     def do_OPTIONS(self):
-        """Tratar requisições CORS preflight"""
         self.send_response(200)
         self.send_header('Access-Control-Allow-Origin', '*')
         self.send_header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
         self.send_header('Access-Control-Allow-Headers', 'Content-Type')
         self.end_headers()
-    
-def do_GET(self):
-        print(f"GET request para: {self.path}")
-        
+
+    def do_GET(self):
         if self.path == '/api/results':
             try:
                 sim = int(redis_command('GET', 'feriado:sim') or 0)
@@ -36,8 +33,8 @@ def do_GET(self):
                 self.send_json(200, {'sim': sim, 'nao': nao})
             except Exception as e:
                 self.send_json(500, {'error': str(e)})
-                
-elif self.path == '/api/comments':
+
+        elif self.path == '/api/comments':
             try:
                 items = redis_command('LRANGE', 'feriado:observacoes', '0', '-1') or []
                 comments = []
@@ -52,24 +49,21 @@ elif self.path == '/api/comments':
                 self.send_json(200, {'comments': comments})
             except Exception as e:
                 self.send_json(500, {'error': str(e)})
+
+        elif self.path in ('/', ''):
+            self.send_response(200)
+            self.send_header('Content-type', 'text/html; charset=utf-8')
+            self.send_header('Access-Control-Allow-Origin', '*')
+            self.end_headers()
+            try:
+                with open('/var/task/public/enquete.html', 'r', encoding='utf-8') as f:
+                    self.wfile.write(f.read().encode())
+            except FileNotFoundError:
+                self.send_json(404, {'erro': 'enquete.html não encontrado'})
         else:
-            # Retornar HTML para requisições para a raiz ou outras rotas
-            if self.path == '/' or self.path == '':
-                self.send_response(200)
-                self.send_header('Content-type', 'text/html; charset=utf-8')
-                self.send_header('Access-Control-Allow-Origin', '*')
-                self.end_headers()
-                try:
-                    with open('/var/task/public/enquete.html', 'r', encoding='utf-8') as f:
-                        self.wfile.write(f.read().encode())
-                except FileNotFoundError:
-                    self.send_json(404, {'erro': 'Arquivo enquete.html não encontrado'})
-            else:
-                self.send_json(404, {'erro': f'Rota {self.path} não encontrada'})
-    
-def do_POST(self):
-        print(f"POST request para: {self.path}")
-        
+            self.send_json(404, {'erro': f'Rota {self.path} não encontrada'})
+
+    def do_POST(self):
         if self.path == '/api/vote':
             try:
                 content_length = int(self.headers.get('Content-Length', 0))
@@ -77,14 +71,14 @@ def do_POST(self):
                 data = json.loads(body)
                 choice = data.get('choice')
                 comment = data.get('comment', '').strip()
-                
+
                 if choice not in ('sim', 'nao'):
                     raise ValueError('Escolha inválida')
                 if not comment:
                     raise ValueError('Observação obrigatória')
                 if len(comment) > 600:
                     raise ValueError('Máximo 600 caracteres')
-                
+
                 redis_command('INCR', f'feriado:{choice}')
                 obs = {
                     'escolha': choice,
@@ -99,8 +93,8 @@ def do_POST(self):
                 self.send_json(500, {'error': str(e)})
         else:
             self.send_json(404, {'erro': f'Rota {self.path} não encontrada'})
-    
-def send_json(self, status, data):
+
+    def send_json(self, status, data):
         self.send_response(status)
         self.send_header('Content-type', 'application/json; charset=utf-8')
         self.send_header('Access-Control-Allow-Origin', '*')
