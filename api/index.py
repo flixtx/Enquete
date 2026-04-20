@@ -18,8 +18,16 @@ def redis_command(*args):
     return data.get('result')
 
 class handler(BaseHTTPRequestHandler):
-    def do_GET(self):
-        print(f"GET request para: {self.path}")  # Log para debug
+    def do_OPTIONS(self):
+        """Tratar requisições CORS preflight"""
+        self.send_response(200)
+        self.send_header('Access-Control-Allow-Origin', '*')
+        self.send_header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
+        self.send_header('Access-Control-Allow-Headers', 'Content-Type')
+        self.end_headers()
+    
+def do_GET(self):
+        print(f"GET request para: {self.path}")
         
         if self.path == '/api/results':
             try:
@@ -29,7 +37,7 @@ class handler(BaseHTTPRequestHandler):
             except Exception as e:
                 self.send_json(500, {'error': str(e)})
                 
-        elif self.path == '/api/comments':
+elif self.path == '/api/comments':
             try:
                 items = redis_command('LRANGE', 'feriado:observacoes', '0', '-1') or []
                 comments = []
@@ -45,9 +53,21 @@ class handler(BaseHTTPRequestHandler):
             except Exception as e:
                 self.send_json(500, {'error': str(e)})
         else:
-            self.send_json(404, {'error': f'Rota {self.path} não encontrada'})
+            # Retornar HTML para requisições para a raiz ou outras rotas
+            if self.path == '/' or self.path == '':
+                self.send_response(200)
+                self.send_header('Content-type', 'text/html; charset=utf-8')
+                self.send_header('Access-Control-Allow-Origin', '*')
+                self.end_headers()
+                try:
+                    with open('/var/task/public/enquete.html', 'r', encoding='utf-8') as f:
+                        self.wfile.write(f.read().encode())
+                except FileNotFoundError:
+                    self.send_json(404, {'erro': 'Arquivo enquete.html não encontrado'})
+            else:
+                self.send_json(404, {'erro': f'Rota {self.path} não encontrada'})
     
-    def do_POST(self):
+def do_POST(self):
         print(f"POST request para: {self.path}")
         
         if self.path == '/api/vote':
@@ -78,11 +98,11 @@ class handler(BaseHTTPRequestHandler):
             except Exception as e:
                 self.send_json(500, {'error': str(e)})
         else:
-            self.send_json(404, {'error': f'Rota {self.path} não encontrada'})
+            self.send_json(404, {'erro': f'Rota {self.path} não encontrada'})
     
-    def send_json(self, status, data):
+def send_json(self, status, data):
         self.send_response(status)
-        self.send_header('Content-type', 'application/json')
+        self.send_header('Content-type', 'application/json; charset=utf-8')
         self.send_header('Access-Control-Allow-Origin', '*')
         self.end_headers()
-        self.wfile.write(json.dumps(data).encode())
+        self.wfile.write(json.dumps(data, ensure_ascii=False).encode('utf-8'))
