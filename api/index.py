@@ -7,6 +7,8 @@ import requests
 UPSTASH_URL = os.environ.get('UPSTASH_REDIS_REST_URL', '').rstrip('/')
 UPSTASH_TOKEN = os.environ.get('UPSTASH_REDIS_REST_TOKEN', '')
 
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
 def redis_command(*args):
     path = '/'.join(str(arg).replace('/', '%2F') for arg in args)
     url = f"{UPSTASH_URL}/{path}"
@@ -18,6 +20,7 @@ def redis_command(*args):
     return data.get('result')
 
 class handler(BaseHTTPRequestHandler):
+
     def do_OPTIONS(self):
         self.send_response(200)
         self.send_header('Access-Control-Allow-Origin', '*')
@@ -55,11 +58,32 @@ class handler(BaseHTTPRequestHandler):
             self.send_header('Content-type', 'text/html; charset=utf-8')
             self.send_header('Access-Control-Allow-Origin', '*')
             self.end_headers()
-            try:
-                with open('/var/task/public/enquete.html', 'r', encoding='utf-8') as f:
-                    self.wfile.write(f.read().encode())
-            except FileNotFoundError:
-                self.send_json(404, {'erro': 'enquete.html não encontrado'})
+
+            possible_paths = [
+                os.path.join(BASE_DIR, 'public', 'enquete.html'),
+                os.path.join(BASE_DIR, 'enquete.html'),
+                '/var/task/public/enquete.html',
+                '/var/task/enquete.html',
+            ]
+
+            html_content = None
+            for path in possible_paths:
+                if os.path.exists(path):
+                    with open(path, 'r', encoding='utf-8') as f:
+                        html_content = f.read()
+                    break
+
+            if html_content:
+                self.wfile.write(html_content.encode())
+            else:
+                self.send_json(404, {
+                    'erro': 'enquete.html não encontrado',
+                    'tentados': possible_paths,
+                    'base_dir': BASE_DIR,
+                    'cwd': os.getcwd(),
+                    'listdir': os.listdir(BASE_DIR) if os.path.exists(BASE_DIR) else []
+                })
+
         else:
             self.send_json(404, {'erro': f'Rota {self.path} não encontrada'})
 
