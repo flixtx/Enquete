@@ -50,19 +50,7 @@
     @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.3} }
 
     h1 { font-family:'Syne',sans-serif; font-size:clamp(22px,5vw,30px); font-weight:800; line-height:1.25; margin-bottom:12px; letter-spacing:-.02em; }
-    .sub { font-size:14px; color:var(--muted); margin-bottom:32px; line-height:1.6; }
-
-    /* Textarea de observação */
-    .obs-wrap { margin-bottom:20px; }
-    .obs-wrap label { font-size:12px; color:var(--muted); display:block; margin-bottom:8px; letter-spacing:.05em; }
-    .obs-wrap textarea {
-      width:100%; background:#0d0d0d; border:1px solid var(--border);
-      border-radius:12px; padding:12px 14px; color:var(--text);
-      font-family:'DM Sans',sans-serif; font-size:14px; resize:vertical;
-      min-height:80px; outline:none; transition:border-color .2s;
-    }
-    .obs-wrap textarea:focus { border-color:rgba(200,245,106,.4); }
-    .obs-wrap .counter { font-size:11px; color:var(--muted); text-align:right; margin-top:4px; }
+    .sub { font-size:14px; color:var(--muted); margin-bottom:40px; line-height:1.6; }
 
     .btns { display:grid; grid-template-columns:1fr 1fr; gap:14px; margin-bottom:28px; }
     .btn {
@@ -100,22 +88,6 @@
     .err  { background:rgba(255,77,109,.07);  border:1px solid rgba(255,77,109,.2);  color:var(--no); }
     .info { background:rgba(255,255,255,.04); border:1px solid var(--border); color:var(--muted); }
 
-    /* Comentários */
-    .comments-section { margin-top:8px; }
-    .comments-title { font-size:12px; color:var(--muted); letter-spacing:.05em; margin-bottom:12px; }
-    .comment-list { display:flex; flex-direction:column; gap:10px; max-height:260px; overflow-y:auto; }
-    .comment-item {
-      background:#0d0d0d; border:1px solid var(--border);
-      border-radius:10px; padding:10px 14px; font-size:13px; line-height:1.5;
-    }
-    .comment-item .cmeta { display:flex; justify-content:space-between; margin-bottom:4px; }
-    .comment-item .clabel { font-family:'Syne',sans-serif; font-size:11px; font-weight:700; }
-    .comment-item .ctime  { font-size:11px; color:var(--muted); }
-    .comment-item .ctexto { color:#ccc; }
-    .clabel-sim { color:var(--yes); }
-    .clabel-nao { color:var(--no); }
-    .no-comments { font-size:13px; color:var(--muted); text-align:center; padding:16px 0; }
-
     .divider { height:1px; background:var(--border); margin:24px 0 16px; }
     .footer { display:flex; justify-content:space-between; font-size:12px; color:var(--muted); }
   </style>
@@ -128,17 +100,11 @@
 <div class="card">
   <div class="badge">Enquete Ativa</div>
   <h1>Você assina a troca do feriado?</h1>
-  <p class="sub">Anônima · Resultado em tempo real · Observação obrigatória</p>
+  <p class="sub">Anônima · Resultado em tempo real · 1 voto por dispositivo</p>
 
   <div class="notice ok"  id="noticeOk">✅ Voto registrado com sucesso!</div>
-  <div class="notice err" id="noticeErr" id="noticeErr"></div>
+  <div class="notice err" id="noticeErr"></div>
   <div class="notice info" id="noticeInfo">ℹ️ Você já votou neste dispositivo.</div>
-
-  <div class="obs-wrap">
-    <label>SUA OBSERVAÇÃO (obrigatória)</label>
-    <textarea id="obs" maxlength="600" placeholder="Escreva o motivo do seu voto..."></textarea>
-    <div class="counter"><span id="obsCount">0</span>/600</div>
-  </div>
 
   <div class="btns">
     <button class="btn btn-y" id="bY" onclick="vote('sim')">👍<span>SIM</span><small>Concordo</small></button>
@@ -158,49 +124,29 @@
   <p class="total" id="tot"></p>
 
   <div class="divider"></div>
-
-  <div class="comments-section">
-    <p class="comments-title">OBSERVAÇÕES RECENTES</p>
-    <div class="comment-list" id="commentList">
-      <p class="no-comments">Carregando...</p>
-    </div>
-  </div>
-
-  <div class="divider"></div>
   <div class="footer">
     <span>Troca de Feriado — <strong id="yr"></strong></span>
-    <span id="refreshBtn" style="cursor:pointer;text-decoration:underline" onclick="loadAll()">↺ atualizar</span>
+    <span style="cursor:pointer;text-decoration:underline" onclick="loadResults()">↺ atualizar</span>
   </div>
 </div>
 
 <script>
   document.getElementById('yr').textContent = new Date().getFullYear();
 
-  const obsEl = document.getElementById('obs');
-  obsEl.addEventListener('input', () => {
-    document.getElementById('obsCount').textContent = obsEl.value.length;
-  });
-
   async function vote(choice) {
     if (localStorage.getItem('feriado_voted')) return;
-    const comment = obsEl.value.trim();
-    if (!comment) {
-      showNotice('noticeErr', '⚠️ Escreva uma observação antes de votar.');
-      return;
-    }
     disable(true);
     try {
       const r = await fetch('/api/vote', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ choice, comment })
+        body: JSON.stringify({ choice })
       });
       const d = await r.json();
       if (!r.ok) throw new Error(d.error || 'Erro ao votar');
       localStorage.setItem('feriado_voted', '1');
       showNotice('noticeOk');
-      obsEl.disabled = true;
-      await loadAll();
+      await loadResults();
     } catch(e) {
       showNotice('noticeErr', '❌ ' + e.message);
       disable(false);
@@ -208,48 +154,24 @@
   }
 
   async function loadResults() {
-    const r = await fetch('/api/results');
-    const { sim, nao } = await r.json();
-    const tot = sim + nao;
-    const pS = tot ? Math.round(sim / tot * 100) : 0;
-    const pN = tot ? 100 - pS : 0;
-    document.getElementById('pY').textContent = pS + '%';
-    document.getElementById('pN').textContent = pN + '%';
-    document.getElementById('tot').innerHTML =
-      `<strong>${tot}</strong> voto${tot !== 1 ? 's' : ''} registrado${tot !== 1 ? 's' : ''}`;
-    document.getElementById('results').classList.add('on');
-    setTimeout(() => {
-      document.getElementById('fY').style.width = pS + '%';
-      document.getElementById('fN').style.width = pN + '%';
-    }, 50);
-  }
-
-  async function loadComments() {
-    const r = await fetch('/api/comments');
-    const { comments } = await r.json();
-    const list = document.getElementById('commentList');
-    if (!comments.length) {
-      list.innerHTML = '<p class="no-comments">Nenhuma observação ainda.</p>';
-      return;
+    try {
+      const r = await fetch('/api/results');
+      const { sim, nao } = await r.json();
+      const tot = sim + nao;
+      const pS = tot ? Math.round(sim / tot * 100) : 0;
+      const pN = tot ? 100 - pS : 0;
+      document.getElementById('pY').textContent = pS + '%';
+      document.getElementById('pN').textContent = pN + '%';
+      document.getElementById('tot').innerHTML =
+        `<strong>${tot}</strong> voto${tot !== 1 ? 's' : ''} registrado${tot !== 1 ? 's' : ''}`;
+      document.getElementById('results').classList.add('on');
+      setTimeout(() => {
+        document.getElementById('fY').style.width = pS + '%';
+        document.getElementById('fN').style.width = pN + '%';
+      }, 50);
+    } catch(e) {
+      console.error('Erro ao carregar resultados:', e);
     }
-    list.innerHTML = comments.map(c => {
-      const d = new Date(c.timestamp);
-      const time = d.toLocaleString('pt-BR', { day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit' });
-      const labelClass = c.escolha === 'sim' ? 'clabel-sim' : 'clabel-nao';
-      const label = c.escolha === 'sim' ? '👍 Sim' : '👎 Não';
-      return `
-        <div class="comment-item">
-          <div class="cmeta">
-            <span class="clabel ${labelClass}">${label}</span>
-            <span class="ctime">${time}</span>
-          </div>
-          <div class="ctexto">${escHtml(c.texto)}</div>
-        </div>`;
-    }).join('');
-  }
-
-  async function loadAll() {
-    await Promise.all([loadResults(), loadComments()]);
   }
 
   function disable(v) {
@@ -266,15 +188,10 @@
     el.classList.add('on');
   }
 
-  function escHtml(str) {
-    return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-  }
-
   async function init() {
-    await loadAll();
+    await loadResults();
     if (localStorage.getItem('feriado_voted')) {
       disable(true);
-      obsEl.disabled = true;
       showNotice('noticeInfo');
     }
   }
